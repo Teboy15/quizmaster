@@ -1,0 +1,869 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Master - Multiplayer</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#111222;
+ color:white;
+ padding:20px;
+}
+
+.container{max-width:500px;margin:auto}
+
+header{
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ gap:10px;
+}
+
+h1{font-size:27px;color:#a78bfa}
+
+.card{
+ background:#20213a;
+ padding:22px;
+ border-radius:18px;
+ margin-top:22px;
+}
+
+h2{margin-top:0}
+
+p{color:#b9bad0;line-height:1.5}
+
+button{
+ width:100%;
+ padding:15px;
+ border:0;
+ border-radius:12px;
+ background:#8055ee;
+ color:white;
+ font-size:16px;
+ font-weight:bold;
+ margin-top:13px;
+}
+
+button.secondary{background:#343650}
+
+input,select{
+ width:100%;
+ padding:14px;
+ border-radius:10px;
+ border:1px solid #555675;
+ background:#17182b;
+ color:white;
+ font-size:16px;
+ margin-top:10px;
+}
+
+.player{
+ display:flex;
+ justify-content:space-between;
+ padding:14px;
+ background:#30314b;
+ border-radius:10px;
+ margin-top:10px;
+}
+
+.hidden{display:none}
+
+.code{
+ font-size:27px;
+ letter-spacing:5px;
+ color:#bda6ff;
+ text-align:center;
+ font-weight:bold;
+}
+
+.small{text-align:center;font-size:13px}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<header>
+ <h1>⚡ QUIZ MASTER</h1>
+
+ <button class="secondary"
+ style="width:auto;margin:0"
+ onclick="goHome()">HOME</button>
+</header>
+
+<section id="mainScreen">
+
+ <div class="card">
+  <h2>🌍 Multiplayer Arena</h2>
+  <p>Challenge other players and prove you're the ultimate quiz champion!</p>
+ </div>
+
+ <div class="card">
+  <h2>🏆 Create a Room</h2>
+  <p>Choose how many players can participate.</p>
+
+  <select id="maxPlayers">
+   <option value="2">2 Players</option>
+   <option value="3">3 Players</option>
+   <option value="4">4 Players</option>
+  </select>
+
+  <button onclick="createRoom()">CREATE ROOM</button>
+ </div>
+
+ <div class="card">
+  <h2>🔑 Join a Room</h2>
+  <p>Enter the room code shared by another player.</p>
+
+  <input id="roomInput"
+   maxlength="6"
+   placeholder="Enter room code">
+
+  <button onclick="joinRoom()">JOIN ROOM</button>
+ </div>
+
+</section>
+
+<section id="waitingScreen" 
+ class="hidden">
+
+ <div class="card">
+  <h2>🎮 Waiting Room</h2>
+  <p class="small">Share this code with your friends.</p>
+
+  <div class="code" id="roomCode">------</div>
+
+  <button class="secondary" onclick="copyCode()">
+   COPY ROOM CODE
+  </button>
+
+  <p id="roomStatus" class="small">
+   Waiting for players...
+  </p>
+ </div>
+
+ <div class="card">
+  <h2>👥 Players</h2>
+  <div id="playerList"></div>
+  <p id="playerCount" class="small"></p>
+ </div>
+
+ <div class="card">
+  <h2>⏳ Match Status</h2>
+  <h1 id="countdown" style="text-align:center">Waiting...</h1>
+  <p class="small">
+   The quiz will begin when the room is ready.
+  </p>
+ </div>
+
+ <button class="secondary" onclick="leaveRoom()">
+  LEAVE ROOM
+ </button>
+
+</section>
+
+</div>
+
+ <script type="module">
+import { initializeApp }
+from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+
+import {
+ getDatabase,
+ ref,
+ get,
+ remove,
+ onValue,
+ runTransaction,
+ onDisconnect
+} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-database.js";
+
+
+// Firebase configuration
+const firebaseConfig = {
+ apiKey: "AIzaSyBvgmKR7U5pFXcWpsi28RDkjzSd_R0RFpo",
+ authDomain: "quiz-master-74645.firebaseapp.com",
+ databaseURL: "https://quiz-master-74645-default-rtdb.europe-west1.firebasedatabase.app",
+ projectId: "quiz-master-74645",
+ storageBucket: "quiz-master-74645.firebasestorage.app",
+ messagingSenderId: "898194464374",
+ appId: "1:898194464374:web:6483b43c689c8d36d6c957"
+};
+
+
+// Connect Firebase
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
+
+
+let currentRoom = localStorage.getItem("qm_current_room") || "";
+let maxPlayers = 2;
+let roomListener = null;
+let countdownTimer = null;
+let activeCountdownEndTime = null;
+
+
+// Give each player a unique ID
+let playerId = localStorage.getItem("qm_player_id");
+
+if (!playerId) {
+ playerId = "p_" + Math.random().toString(36).substring(2, 12);
+ localStorage.setItem("qm_player_id", playerId);
+}
+
+
+// Get saved username
+const playerName = localStorage.getItem("qm_username") || "Player";
+
+   // Restore player presence after reconnecting
+function monitorConnection() {
+
+ const connectionRef = ref(database, ".info/connected");
+
+ onValue(connectionRef, async snapshot => {
+
+  if (snapshot.val() !== true || !currentRoom) {
+   return;
+  }
+
+  const roomRef = ref(database, "rooms/" + currentRoom);
+
+  const playerRef = ref(
+   database,
+   "rooms/" + currentRoom + "/players/" + playerId
+  );
+
+  try {
+
+   await runTransaction(roomRef, room => {
+
+    if (!room || room.status !== "waiting") {
+     return;
+    }
+
+    room.players = room.players || {};
+
+    if (room.players[playerId]) {
+     return room;
+    }
+
+    if (Object.keys(room.players).length >= room.maxPlayers) {
+     return;
+    }
+
+    room.players[playerId] = {
+     name: playerName,
+     joinedAt: Date.now()
+    };
+
+    return room;
+
+   });
+
+   await onDisconnect(playerRef).remove();
+
+  } catch (error) {
+
+   console.error("Reconnection error:", error);
+
+  }
+
+ });
+
+}
+
+monitorConnection();
+
+// Go back to dashboard
+function goHome() {
+ window.location.href = "./quiz-master.html";
+}
+
+
+// Display waiting room
+function showWaitingRoom() {
+
+ document.getElementById("mainScreen").classList.add("hidden");
+
+ document.getElementById("waitingScreen").classList.remove("hidden");
+
+ document.getElementById("roomCode").textContent = currentRoom;
+
+}
+
+
+// Update player list
+function updatePlayers(room) {
+
+ const list = document.getElementById("playerList");
+
+ list.innerHTML = "";
+
+ const players = room.players || {};
+ const entries = Object.values(players);
+
+ entries.forEach(player => {
+
+  const item = document.createElement("div");
+  item.className = "player";
+
+  const name = document.createElement("span");
+  name.textContent = "👤 " + player.name;
+
+  const status = document.createElement("span");
+  status.textContent = "READY";
+
+  item.append(name, status);
+  list.appendChild(item);
+
+ });
+
+
+ // Show empty player slots
+ for (let i = entries.length; i < room.maxPlayers; i++) {
+
+  const item = document.createElement("div");
+  item.className = "player";
+  item.textContent = "Waiting for player... ⏳";
+
+  list.appendChild(item);
+
+ }
+
+
+ document.getElementById("playerCount").textContent =
+  entries.length + " / " + room.maxPlayers + " players";
+
+
+ if (entries.length >= room.maxPlayers) {
+
+  document.getElementById("roomStatus").textContent =
+   "All player slots are filled.";
+
+ } else {
+
+  document.getElementById("roomStatus").textContent =
+   "Waiting for more players...";
+
+ }
+
+}
+
+
+// Shared multiplayer countdown
+function startSharedCountdown(endTime) {
+
+ // Avoid restarting the same countdown
+ if (
+  activeCountdownEndTime === endTime &&
+  countdownTimer
+ ) {
+  return;
+ }
+
+ if (countdownTimer) {
+  clearInterval(countdownTimer);
+ }
+
+ activeCountdownEndTime = endTime;
+
+
+ async function updateCountdown() {
+
+  const remaining = Math.ceil((endTime - Date.now()) / 1000);
+
+  if (remaining > 0) {
+
+   document.getElementById("countdown").textContent = remaining;
+
+  } else {
+
+   document.getElementById("countdown").textContent = "Quiz starting!";
+
+   if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+   }
+
+   activeCountdownEndTime = null;
+
+   const roomRef = ref(database, "rooms/" + currentRoom);
+
+   try {
+
+    await runTransaction(roomRef, room => {
+
+     if (!room || room.status !== "countdown") {
+      return;
+     }
+
+     room.status = "started";
+
+     return room;
+
+    });
+
+   } catch (error) {
+
+    console.error("Could not start game:", error);
+
+   }
+
+  }
+
+ }
+
+
+ updateCountdown();
+
+ countdownTimer = setInterval(updateCountdown, 250);
+
+}
+
+
+// Listen for changes in Firebase
+function listenToRoom() {
+
+ if (roomListener) {
+  roomListener();
+  roomListener = null;
+ }
+
+ const roomRef = ref(database, "rooms/" + currentRoom);
+
+ roomListener = onValue(roomRef, snapshot => {
+
+  if (!snapshot.exists()) {
+
+   alert("This room no longer exists.");
+
+   leaveRoom();
+   return;
+
+  }
+
+
+  const room = snapshot.val();
+
+  maxPlayers = room.maxPlayers;
+
+  updatePlayers(room);
+
+
+  // Start countdown when the room is full
+  const playerTotal = Object.keys(room.players || {}).length;
+
+
+  if (room.status === "countdown" && room.countdownEndsAt) {
+
+   startSharedCountdown(room.countdownEndsAt);
+
+  } else if (room.status === "started") {
+
+   if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+   }
+
+   activeCountdownEndTime = null;
+
+   document.getElementById("countdown").textContent =
+    "Quiz starting!";
+
+  } else if (
+   playerTotal >= room.maxPlayers &&
+   room.hostId === playerId &&
+   room.status === "waiting"
+  ) {
+
+   runTransaction(roomRef, currentRoomData => {
+
+    if (
+     !currentRoomData ||
+     currentRoomData.countdownEndsAt ||
+     currentRoomData.status !== "waiting"
+    ) {
+     return;
+    }
+
+    const total = Object.keys(currentRoomData.players || {}).length;
+
+    if (total < currentRoomData.maxPlayers) {
+     return;
+    }
+
+    currentRoomData.countdownEndsAt = Date.now() + 5000;
+
+    currentRoomData.status = "countdown";
+
+    return currentRoomData;
+
+   }).catch(error => {
+
+    console.error("Countdown error:", error);
+
+   });
+
+  }
+
+ });
+
+}
+
+   // Restore the previous room after refreshing
+
+async function restorePreviousRoom() {
+
+ 
+  
+ if (!currentRoom) {
+  return;
+ }
+
+ try {
+
+  const roomRef = ref(database, "rooms/" + currentRoom);
+
+   const check = await get(roomRef);
+
+
+  let restored = false;
+  let reason = "";
+
+  const result = await runTransaction(roomRef, room => {
+
+   restored = false;
+   reason = "";
+
+  if (!room) {
+ room = check.val();
+}
+
+if (!room) {
+ reason = "Room no longer exists.";
+ return;
+}
+
+   if (room.status !== "waiting") {
+    reason = "This room has already started.";
+    return;
+   }
+
+   room.players = room.players || {};
+
+   if (!room.players[playerId] &&
+       Object.keys(room.players).length >= room.maxPlayers) {
+    reason = "This room is full.";
+    return;
+   }
+
+   room.players[playerId] = {
+    name: playerName,
+    joinedAt: Date.now()
+   };
+
+   restored = true;
+
+   return room;
+
+  });
+
+
+
+  if (!result.committed || !restored) {
+
+   localStorage.removeItem("qm_current_room");
+   currentRoom = "";
+
+   alert(reason || "Could not restore your room.");
+   return;
+
+  }
+  maxPlayers = result.snapshot.val().maxPlayers;
+
+  await onDisconnect(
+   ref(database, "rooms/" + currentRoom + "/players/" + playerId)
+  ).remove();
+
+  showWaitingRoom();
+  listenToRoom();
+
+ } catch (error) {
+
+  console.error("Could not restore room:", error);
+
+ }
+
+}
+
+
+// Create a new room
+async function createRoom() {
+
+ try {
+
+  maxPlayers = Number(
+   document.getElementById("maxPlayers").value
+  );
+
+  const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  let code = "";
+  let created = false;
+
+  while (!created) {
+
+   code = "";
+
+   for (let i = 0; i < 6; i++) {
+    code += characters.charAt(
+     Math.floor(Math.random() * characters.length)
+    );
+   }
+
+   const roomRef = ref(database, "rooms/" + code);
+
+   const result = await runTransaction(roomRef, room => {
+
+    if (room !== null) {
+     return;
+    }
+
+    return {
+     hostId: playerId,
+     maxPlayers: maxPlayers,
+     status: "waiting",
+     players: {
+      [playerId]: {
+       name: playerName,
+       joinedAt: Date.now()
+      }
+     }
+    };
+
+   });
+
+   created = result.committed;
+  }
+
+  currentRoom = code;
+
+  localStorage.setItem("qm_current_room", code);
+
+  await onDisconnect(
+   ref(database, "rooms/" + code + "/players/" + playerId)
+  ).remove();
+
+  showWaitingRoom();
+  listenToRoom();
+
+ } catch (error) {
+
+  console.error(error);
+  alert("Could not create room: " + error.message);
+
+ }
+
+}
+
+
+// Join an existing room
+async function joinRoom() {
+
+ try {
+
+  const code = document.getElementById("roomInput")
+   .value.trim().toUpperCase();
+
+  if (code.length !== 6) {
+   alert("Enter a valid 6-character room code.");
+   return;
+  }
+
+  const roomRef = ref(database, "rooms/" + code);
+
+  let joined = false;
+  let reason = "";
+
+  const result = await runTransaction(roomRef, room => {
+
+   joined = false;
+   reason = "";
+
+   if (!room) {
+    reason = "Room not found.";
+    return;
+   }
+
+   if (room.status !== "waiting") {
+    reason = "This room has already started.";
+    return;
+   }
+
+   room.players = room.players || {};
+
+   if (room.players[playerId]) {
+    joined = true;
+    return room;
+   }
+
+   if (Object.keys(room.players).length >= room.maxPlayers) {
+    reason = "This room is full.";
+    return;
+   }
+
+   room.players[playerId] = {
+    name: playerName,
+    joinedAt: Date.now()
+   };
+
+   joined = true;
+
+   return room;
+
+  });
+
+  if (!result.committed || !joined) {
+   alert(reason || "Could not join this room.");
+   return;
+  }
+
+  currentRoom = code;
+
+  localStorage.setItem("qm_current_room", code);
+
+  maxPlayers = result.snapshot.val().maxPlayers;
+
+  await onDisconnect(
+   ref(database, "rooms/" + code + "/players/" + playerId)
+  ).remove();
+
+  showWaitingRoom();
+  listenToRoom();
+
+ } catch (error) {
+
+  console.error(error);
+  alert("Could not join room: " + error.message);
+
+ }
+
+}
+ 
+
+
+// Copy room code
+async function copyCode() {
+
+ try {
+
+  await navigator.clipboard.writeText(currentRoom);
+
+  alert("Room code copied!");
+
+ } catch {
+
+  alert("Your room code is: " + currentRoom);
+
+ }
+
+}
+
+
+// Leave the room
+async function leaveRoom() {
+
+ if (roomListener) {
+
+  roomListener();
+  roomListener = null;
+
+ }
+
+
+ if (countdownTimer) {
+
+  clearInterval(countdownTimer);
+  countdownTimer = null;
+
+ }
+
+ activeCountdownEndTime = null;
+
+
+ if (currentRoom) {
+
+  try {
+
+   const roomRef = ref(database, "rooms/" + currentRoom);
+
+   const snapshot = await get(roomRef);
+
+
+   if (snapshot.exists()) {
+
+    const room = snapshot.val();
+
+
+    if (room.hostId === playerId) {
+
+     // Host leaving closes the room
+     await remove(roomRef);
+
+    } else {
+
+     // Other players remove themselves
+     await remove(
+      ref(database, "rooms/" + currentRoom + "/players/" + playerId)
+     );
+
+    }
+
+   }
+
+  } catch (error) {
+
+   console.error(error);
+
+   alert("Could not leave room: " + error.message);
+
+  }
+
+ }
+
+
+ currentRoom = "";
+
+ document.getElementById("waitingScreen").classList.add("hidden");
+
+ document.getElementById("mainScreen").classList.remove("hidden");
+
+ document.getElementById("countdown").textContent = "Waiting...";
+
+}
+
+
+// Make functions available to HTML buttons
+window.goHome = goHome;
+window.createRoom = createRoom;
+window.joinRoom = joinRoom;
+window.copyCode = copyCode;
+window.leaveRoom = leaveRoom;
+   restorePreviousRoom();
+
+
+console.log("Quiz Master multiplayer Firebase is ready!");
+
+
+</script>
+
+</body>
+</html>

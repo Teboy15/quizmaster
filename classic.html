@@ -1,0 +1,365 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz Master - Classic</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090d1b;color:white;font-family:Arial,sans-serif}
+.app{max-width:480px;margin:auto;padding:22px 18px;min-height:100vh}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}
+.logo{color:#a99aff;font-weight:900;letter-spacing:2px}
+.coins{background:#20213b;padding:11px 14px;border-radius:25px;color:#ffd66b}
+h1{font-size:27px;margin:15px 0 8px}
+.muted{color:#aab3ce;line-height:1.5;font-size:14px}
+.panel{background:#171d34;border:1px solid #303957;border-radius:19px;padding:20px;margin-top:18px}
+.section-title{font-size:14px;color:#c8cde0;margin:22px 0 12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choice{padding:15px 10px;background:#202741;color:white;border:1px solid #394461;border-radius:12px;text-align:left}
+.choice.selected{border:2px solid #a18aff;background:#342b61}
+.choice small{display:block;color:#aab3ce;margin-top:6px}
+.difficulties{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+button{font:inherit;cursor:pointer}
+.difficulty{padding:13px 4px;background:#202741;color:white;border:1px solid #394461;border-radius:10px}
+.difficulty.selected{background:#493b80;border-color:#a18aff}
+.primary{width:100%;padding:16px;border:0;border-radius:12px;background:#8974ff;color:white;font-weight:bold;margin-top:20px}
+.secondary{width:100%;padding:14px;border:1px solid #394461;border-radius:12px;background:#202741;color:white;margin-top:10px}
+.hidden{display:none!important}
+.stats{display:flex;justify-content:space-between;color:#c2c9dd;font-size:13px;margin:15px 0}
+.progress{height:7px;background:#293451;border-radius:10px;overflow:hidden}
+.bar{height:100%;width:0;background:#9a86ff;transition:width .3s}
+.timer{font-size:23px;font-weight:bold;color:#ffd66b}
+.question{font-size:21px;line-height:1.5;margin:28px 0}
+.answer{width:100%;padding:16px;text-align:left;margin:7px 0;background:#202a43;border:1px solid #394765;border-radius:12px;color:white}
+.answer.correct{background:#176b50;border-color:#3de2a2}
+.answer.wrong{background:#823747;border-color:#ff718b}
+.answer:disabled{opacity:1}
+.feedback{text-align:center;min-height:25px;margin-top:15px;color:#c6baff;font-size:14px}
+.result{text-align:center}
+.big-score{font-size:42px;color:#a99aff;font-weight:bold;margin:25px 0}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="top">
+ <div class="logo">QUIZ MASTER</div>
+ <div class="coins">🪙 <span id="coinBalance">100</span></div>
+</header>
+
+<section id="setup">
+ <h1>Classic Challenge 🧠</h1>
+ <p class="muted">Choose your battlefield and prove your knowledge.</p>
+
+ <div class="section-title">SELECT CATEGORY</div>
+ <div class="grid" id="categories">
+  <button class="choice selected" data-value="Technology">💻 Technology<small>Computers & digital world</small></button>
+  <button class="choice" data-value="Science">🔬 Science<small>Discover how things work</small></button>
+  <button class="choice" data-value="Sports">⚽ Sports<small>Sports knowledge</small></button>
+  <button class="choice" data-value="History">📜 History<small>Past events & people</small></button>
+  <button class="choice" data-value="General Knowledge">🌍 General Knowledge<small>Facts about the world</small></button>
+ </div>
+
+ <div class="section-title">SELECT DIFFICULTY</div>
+ <div class="difficulties" id="difficulties">
+  <button class="difficulty selected" data-value="Easy">Easy</button>
+  <button class="difficulty" data-value="Medium">Medium</button>
+  <button class="difficulty" data-value="Hard">Hard</button>
+ </div>
+
+ <div class="panel">
+  <strong>How to play</strong>
+  <p class="muted">Answer before the timer runs out. Correct answers earn points and coins. Consecutive correct answers build your streak!</p>
+  <p class="muted">10 questions · 15 seconds each</p>
+ </div>
+ <button class="primary" onclick="startGame()">START CHALLENGE →</button>
+ <button class="secondary" onclick="goHome()">BACK TO DASHBOARD</button>
+</section>
+
+<section id="game" class="hidden">
+ <div class="stats">
+  <span id="questionCount">Question 1/10</span>
+  <span class="timer">⏱ <span id="timer">15</span>s</span>
+ </div>
+ <div class="progress"><div class="bar" id="bar"></div></div>
+ <div class="stats">
+  <span>⭐ Score: <b id="score">0</b></span>
+  <span>🔥 Streak: <b id="streak">0</b></span>
+ </div>
+ <div class="panel">
+  <div class="muted" id="categoryLabel"></div>
+  <div class="question" id="question"></div>
+  <div id="answers"></div>
+  <div class="feedback" id="feedback"></div>
+ </div>
+ <button id="next" class="primary hidden" onclick="nextQuestion()">NEXT QUESTION →</button>
+</section>
+
+<section id="results" class="hidden result">
+ <h1>Challenge Complete! 🏆</h1>
+ <p class="muted" id="resultMessage"></p>
+ <div class="big-score" id="finalScore">0</div>
+ <div class="panel">
+  <p>Correct answers: <b id="correctCount">0</b>/10</p>
+  <p>Best streak: <b id="bestStreak">0</b></p>
+  <p>Coins earned: 🪙 <b id="earnedCoins">0</b></p>
+  <p>Highest score: <b id="highScore">0</b></p>
+ </div>
+ <button class="primary" onclick="startGame()">PLAY AGAIN</button>
+ <button class="secondary" onclick="showScreen('setup')">CHANGE CATEGORY</button>
+ <button class="secondary" onclick="goHome()">DASHBOARD</button>
+</section>
+
+</div>
+
+<script>
+const bank = {
+Technology:{
+Easy:[
+["What does CPU stand for?",["Central Processing Unit","Computer Personal Unit","Central Program Utility","Control Power Unit"],0],
+["Which of these is an input device?",["Monitor","Printer","Keyboard","Speaker"],2],
+["Which language structures a web page?",["HTML","CSS","SQL","Python"],0],
+["What does USB stand for?",["Universal Serial Bus","United System Board","User Service Box","Universal Storage Base"],0],
+["Which device stores files permanently?",["RAM","Hard drive","CPU","Cache"],1]
+],
+Medium:[
+["Which number system do computers primarily use?",["Decimal","Binary","Roman","Octal"],1],
+["What does URL stand for?",["Uniform Resource Locator","Universal Record Link","User Reference Language","Unified Routing List"],0],
+["Which protocol is used to browse secure websites?",["FTP","HTTP","HTTPS","SMTP"],2],
+["What is the main purpose of an operating system?",["Design websites","Manage computer resources","Create hardware","Browse only"],1],
+["Which memory is volatile?",["ROM","SSD","RAM","Flash drive"],2]
+],
+Hard:[
+["Which layer of the OSI model handles routing?",["Transport","Network","Session","Physical"],1],
+["What is the default port for HTTPS?",["21","25","80","443"],3],
+["Which SQL command retrieves records?",["INSERT","UPDATE","SELECT","DELETE"],2],
+["What does DNS translate?",["Domain names to IP addresses","Code to images","Files to folders","Passwords to usernames"],0],
+["Which cryptographic method uses a public and private key pair?",["Symmetric encryption","Asymmetric encryption","Hashing only","Compression"],1]
+]
+},
+Science:{
+Easy:[
+["Which planet is known as the Red Planet?",["Venus","Mars","Jupiter","Mercury"],1],
+["What gas do humans need to breathe?",["Carbon dioxide","Oxygen","Hydrogen","Helium"],1],
+["What is the boiling point of water at sea level?",["50°C","75°C","100°C","150°C"],2],
+["Which organ pumps blood?",["Lungs","Brain","Heart","Kidney"],2],
+["What force pulls objects toward Earth?",["Magnetism","Gravity","Friction","Pressure"],1]
+],
+Medium:[
+["What is the chemical symbol for gold?",["Ag","Au","Go","Gd"],1],
+["Which part of a plant mainly absorbs water?",["Leaves","Flower","Roots","Stem"],2],
+["What is the largest organ of the human body?",["Heart","Skin","Liver","Brain"],1],
+["Which gas makes up most of Earth's atmosphere?",["Oxygen","Carbon dioxide","Nitrogen","Hydrogen"],2],
+["What is the basic unit of life?",["Atom","Cell","Tissue","Organ"],1]
+],
+Hard:[
+["What is the approximate speed of light in a vacuum?",["30,000 km/s","150,000 km/s","300,000 km/s","500,000 km/s"],2],
+["What is the pH of a neutral solution at 25°C?",["0","5","7","14"],2],
+["Which particle has a negative electric charge?",["Proton","Neutron","Electron","Photon"],2],
+["What is the powerhouse of the cell?",["Nucleus","Mitochondrion","Ribosome","Golgi apparatus"],1],
+["Which blood cells help fight infections?",["Red blood cells","White blood cells","Platelets","Plasma cells only"],1]
+]
+},
+Sports:{
+Easy:[
+["How many players does a football team have on the field?",["9","10","11","12"],2],
+["Which sport uses a racket and shuttlecock?",["Tennis","Badminton","Squash","Golf"],1],
+["How many rings are on the Olympic symbol?",["Four","Five","Six","Seven"],1],
+["Which sport is played at Wimbledon?",["Cricket","Football","Tennis","Rugby"],2],
+["How many points is a basketball free throw worth?",["1","2","3","4"],0]
+],
+Medium:[
+["How long is a standard football match, excluding added time?",["60 minutes","80 minutes","90 minutes","100 minutes"],2],
+["Which country won the 2022 FIFA Men's World Cup?",["France","Argentina","Brazil","Germany"],1],
+["In tennis, what score comes after 30?",["35","40","45","50"],1],
+["How many players from one team are on court in volleyball?",["5","6","7","8"],1],
+["What colour jersey is worn by the Tour de France overall leader?",["Green","White","Yellow","Red"],2]
+],
+Hard:[
+["How many points is a try worth in rugby union?",["3","5","6","7"],1],
+["Which country hosted the 2016 Summer Olympics?",["China","Brazil","Japan","Greece"],1],
+["In cricket, how many legal balls are in a standard over?",["4","5","6","8"],2],
+["What is the maximum score with one dart in standard darts?",["20","40","50","60"],3],
+["Which athletics event combines ten track and field disciplines?",["Heptathlon","Decathlon","Triathlon","Pentathlon"],1]
+]
+},
+History:{
+Easy:[
+["Who was the first president of Nigeria?",["Olusegun Obasanjo","Nnamdi Azikiwe","Yakubu Gowon","Shehu Shagari"],1],
+["In which year did Nigeria gain independence?",["1957","1960","1963","1970"],1],
+["Which ancient civilization built the pyramids at Giza?",["Romans","Greeks","Ancient Egyptians","Persians"],2],
+["Who was the first man to walk on the Moon?",["Yuri Gagarin","Neil Armstrong","Buzz Aldrin","John Glenn"],1],
+["Which wall fell in 1989, symbolizing the end of a divided Berlin?",["Great Wall","Berlin Wall","Hadrian's Wall","Western Wall"],1]
+],
+Medium:[
+["In which year did World War II end?",["1943","1944","1945","1948"],2],
+["Who led India's independence movement through nonviolent resistance?",["Mahatma Gandhi","Jawaharlal Nehru","Subhas Chandra Bose","Muhammad Ali Jinnah"],0],
+["Which empire was ruled by Mansa Musa?",["Roman Empire","Mali Empire","Ottoman Empire","Mongol Empire"],1],
+["In which year did the French Revolution begin?",["1776","1789","1815","1848"],1],
+["Who was the British prime minister for most of World War II?",["Neville Chamberlain","Winston Churchill","Clement Attlee","Anthony Eden"],1]
+],
+Hard:[
+["Which treaty formally ended World War I between Germany and the Allied Powers?",["Treaty of Paris","Treaty of Versailles","Treaty of Rome","Treaty of Utrecht"],1],
+["Which West African empire was associated with Sundiata Keita?",["Songhai","Ghana","Mali","Benin"],2],
+["In which year did the Nigerian Civil War end?",["1967","1969","1970","1975"],2],
+["Who was the first emperor of Rome?",["Julius Caesar","Augustus","Nero","Trajan"],1],
+["Which conference of 1884–85 regulated European colonization in Africa?",["Yalta Conference","Berlin Conference","Vienna Congress","Potsdam Conference"],1]
+]
+},
+"General Knowledge":{
+Easy:[
+["What is the capital of Nigeria?",["Lagos","Abuja","Kano","Ibadan"],1],
+["How many days are in a leap year?",["364","365","366","367"],2],
+["Which is the largest ocean?",["Atlantic","Indian","Arctic","Pacific"],3],
+["How many continents are commonly recognized?",["Five","Six","Seven","Eight"],2],
+["Which language is primarily spoken in Brazil?",["Spanish","Portuguese","French","English"],1]
+],
+Medium:[
+["What is the currency of Japan?",["Won","Yuan","Yen","Ringgit"],2],
+["Which country has the city of Istanbul?",["Greece","Turkey","Egypt","Italy"],1],
+["What is the smallest prime number?",["0","1","2","3"],2],
+["Which is the longest river in Africa?",["Congo","Niger","Nile","Zambezi"],2],
+["Which instrument measures atmospheric pressure?",["Thermometer","Barometer","Hygrometer","Anemometer"],1]
+],
+Hard:[
+["What is the capital of Kazakhstan?",["Almaty","Astana","Tashkent","Bishkek"],1],
+["Which element has the chemical symbol W?",["Tungsten","Tin","Titanium","Tantalum"],0],
+["How many bones are typically in an adult human body?",["186","196","206","216"],2],
+["Which strait separates Europe and Africa at their closest point?",["Bering Strait","Strait of Gibraltar","Malacca Strait","Dover Strait"],1],
+["What is the SI unit of electrical resistance?",["Volt","Watt","Ampere","Ohm"],3]
+]
+}
+};
+
+let category="Technology",difficulty="Easy";
+let questions=[],index=0,score=0,streak=0,bestStreak=0,correct=0;
+let time=15,clock=null,answered=false,earned=0;
+
+const $=id=>document.getElementById(id);
+
+function readCoins(){
+ let n=Number(localStorage.getItem("qm_coins"));
+ return Number.isFinite(n)&&n>=0?n:100;
+}
+function updateCoins(){
+ $("coinBalance").textContent=readCoins();
+}
+function showScreen(id){
+ ["setup","game","results"].forEach(s=>$(s).classList.add("hidden"));
+ $(id).classList.remove("hidden");
+ window.scrollTo(0,0);
+}
+$("categories").addEventListener("click",e=>{
+ const b=e.target.closest(".choice");
+ if(!b)return;
+ document.querySelectorAll(".choice").forEach(x=>x.classList.remove("selected"));
+ b.classList.add("selected");
+ category=b.dataset.value;
+});
+$("difficulties").addEventListener("click",e=>{
+ const b=e.target.closest(".difficulty");
+ if(!b)return;
+ document.querySelectorAll(".difficulty").forEach(x=>x.classList.remove("selected"));
+ b.classList.add("selected");
+ difficulty=b.dataset.value;
+});
+
+function shuffle(arr){
+ let a=[...arr];
+ for(let i=a.length-1;i>0;i--){
+  let j=Math.floor(Math.random()*(i+1));
+  [a[i],a[j]]=[a[j],a[i]];
+ }
+ return a;
+}
+function startGame(){
+ clearInterval(clock);
+ questions=shuffle(bank[category][difficulty]);
+ index=0;score=0;streak=0;bestStreak=0;correct=0;earned=0;
+ showScreen("game");
+ loadQuestion();
+}
+function loadQuestion(){
+ clearInterval(clock);
+ answered=false;time=15;
+ const q=questions[index];
+ $("questionCount").textContent=`Question ${index+1}/${questions.length}`;
+ $("categoryLabel").textContent=category+" · "+difficulty;
+ $("question").textContent=q[0];
+ $("timer").textContent=time;
+ $("score").textContent=score;
+ $("streak").textContent=streak;
+ $("bar").style.width=(index/questions.length*100)+"%";
+ $("feedback").textContent="";
+ $("next").classList.add("hidden");
+ $("next").textContent=index===questions.length-1?"VIEW RESULTS →":"NEXT QUESTION →";
+ $("answers").innerHTML="";
+ q[1].forEach((answer,i)=>{
+  let b=document.createElement("button");
+  b.className="answer";
+  b.textContent=String.fromCharCode(65+i)+". "+answer;
+  b.onclick=()=>chooseAnswer(i);
+  $("answers").appendChild(b);
+ });
+ clock=setInterval(()=>{
+  time--;
+  $("timer").textContent=time;
+  if(time<=0)chooseAnswer(-1);
+ },1000);
+}
+function chooseAnswer(choice){
+ if(answered)return;
+ answered=true;clearInterval(clock);
+ const q=questions[index];
+ const buttons=document.querySelectorAll(".answer");
+ buttons.forEach((b,i)=>{
+  b.disabled=true;
+  if(i===q[2])b.classList.add("correct");
+ });
+ if(choice===q[2]){
+  streak++;correct++;
+  bestStreak=Math.max(bestStreak,streak);
+  let points=10+(streak>1?5:0);
+  score+=points;
+  earned+=2+(streak>1?1:0);
+  $("feedback").textContent="✓ Correct! +"+points+" points";
+ }else{
+  streak=0;
+  if(choice>=0)buttons[choice].classList.add("wrong");
+  $("feedback").textContent=choice===-1?"⌛ Time's up!":"Not quite! Correct answer highlighted.";
+ }
+ $("score").textContent=score;
+ $("streak").textContent=streak;
+ $("next").classList.remove("hidden");
+}
+function nextQuestion(){
+ if(index<questions.length-1){index++;loadQuestion();}
+ else finishGame();
+}
+function finishGame(){
+ clearInterval(clock);
+ let oldHigh=Number(localStorage.getItem("qm_high_"+category+"_"+difficulty)||0);
+ let newHigh=Math.max(oldHigh,score);
+ localStorage.setItem("qm_high_"+category+"_"+difficulty,newHigh);
+ let balance=readCoins()+earned;
+ localStorage.setItem("qm_coins",balance);
+ $("coinBalance").textContent=balance;
+ $("finalScore").textContent=score+" POINTS";
+ $("correctCount").textContent=correct;
+ $("bestStreak").textContent=bestStreak;
+ $("earnedCoins").textContent=earned;
+ $("highScore").textContent=newHigh;
+ $("resultMessage").textContent=`${category} · ${difficulty} challenge`;
+ $("bar").style.width="100%";
+ showScreen("results");
+}
+function goHome(){
+ clearInterval(clock);
+ window.location.href="quiz-master.html";
+}
+updateCoins();
+</script>
+</body>
+</html>
