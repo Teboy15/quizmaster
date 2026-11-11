@@ -676,88 +676,89 @@ async function createRoom() {
 
 
 // Join an existing room
+   
 async function joinRoom() {
+  try {
+    const code = document.getElementById("roomInput")
+      .value.trim().toUpperCase();
 
- try {
+    if (code.length !== 6) {
+      alert("Enter a valid 6-character room code.");
+      return;
+    }
 
-  const code = document.getElementById("roomInput")
-   .value.trim().toUpperCase();
+    const roomRef = ref(database, "rooms/" + code);
 
-  if (code.length !== 6) {
-   alert("Enter a valid 6-character room code.");
-   return;
+    // Fetch the room from Firebase first
+    const roomSnapshot = await get(roomRef);
+    const existingRoom = roomSnapshot.val();
+
+    if (!existingRoom) {
+      alert("Room not found.");
+      return;
+    }
+
+    let joined = false;
+    let reason = "";
+
+    const result = await runTransaction(roomRef, room => {
+      joined = false;
+      reason = "";
+
+      // Use the fetched room if the local transaction starts with null
+      if (!room) {
+        room = JSON.parse(JSON.stringify(existingRoom));
+      }
+
+      if (room.status !== "waiting") {
+        reason = "This room has already started.";
+        return;
+      }
+
+      room.players = room.players || {};
+
+      if (room.players[playerId]) {
+        joined = true;
+        return room;
+      }
+
+      if (Object.keys(room.players).length >= room.maxPlayers) {
+        reason = "This room is full.";
+        return;
+      }
+
+      room.players[playerId] = {
+        name: playerName,
+        joinedAt: Date.now()
+      };
+
+      joined = true;
+      return room;
+    });
+
+    if (!result.committed || !joined) {
+      alert(reason || "Could not join this room.");
+      return;
+    }
+
+    currentRoom = code;
+    localStorage.setItem("qm_current_room", code);
+
+    maxPlayers = result.snapshot.val().maxPlayers;
+
+    await onDisconnect(
+      ref(database, "rooms/" + code + "/players/" + playerId)
+    ).remove();
+
+    showWaitingRoom();
+    listenToRoom();
+
+  } catch (error) {
+    console.error(error);
+    alert("Could not join room: " + error.message);
   }
-
-  const roomRef = ref(database, "rooms/" + code);
-
-  let joined = false;
-  let reason = "";
-
-  const result = await runTransaction(roomRef, room => {
-
-   joined = false;
-   reason = "";
-
-   if (!room) {
-    reason = "Room not found.";
-    return;
-   }
-
-   if (room.status !== "waiting") {
-    reason = "This room has already started.";
-    return;
-   }
-
-   room.players = room.players || {};
-
-   if (room.players[playerId]) {
-    joined = true;
-    return room;
-   }
-
-   if (Object.keys(room.players).length >= room.maxPlayers) {
-    reason = "This room is full.";
-    return;
-   }
-
-   room.players[playerId] = {
-    name: playerName,
-    joinedAt: Date.now()
-   };
-
-   joined = true;
-
-   return room;
-
-  });
-
-  if (!result.committed || !joined) {
-   alert(reason || "Could not join this room.");
-   return;
-  }
-
-  currentRoom = code;
-
-  localStorage.setItem("qm_current_room", code);
-
-  maxPlayers = result.snapshot.val().maxPlayers;
-
-  await onDisconnect(
-   ref(database, "rooms/" + code + "/players/" + playerId)
-  ).remove();
-
-  showWaitingRoom();
-  listenToRoom();
-
- } catch (error) {
-
-  console.error(error);
-  alert("Could not join room: " + error.message);
-
- }
-
 }
- 
+
 
 
 // Copy room code
