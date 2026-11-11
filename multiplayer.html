@@ -106,18 +106,45 @@ input,select{
   <p>Challenge other players and prove you're the ultimate quiz champion!</p>
  </div>
 
- <div class="card">
+ 
+<div class="card">
   <h2>🏆 Create a Room</h2>
-  <p>Choose how many players can participate.</p>
+  <p>Set up the quiz for your friends.</p>
 
+  <label>Choose Category</label>
+  <select id="roomCategory">
+    <option value="Technology">Technology</option>
+    <option value="Science">Science</option>
+    <option value="Sports">Sports</option>
+    <option value="History">History</option>
+    <option value="General Knowledge">General Knowledge</option>
+  </select>
+
+  <label>Choose Difficulty</label>
+  <select id="roomDifficulty">
+    <option value="Easy">Easy</option>
+    <option value="Medium">Medium</option>
+    <option value="Hard">Hard</option>
+  </select>
+
+  <label>Number of Questions</label>
+  <select id="roomQuestions">
+    <option value="5">5 Questions</option>
+    <option value="10" selected>10 Questions</option>
+    <option value="15">15 Questions</option>
+    <option value="75">All 75 Questions</option>
+  </select>
+
+  <label>Maximum Players</label>
   <select id="maxPlayers">
-   <option value="2">2 Players</option>
-   <option value="3">3 Players</option>
-   <option value="4">4 Players</option>
+    <option value="2">2 Players</option>
+    <option value="3">3 Players</option>
+    <option value="4">4 Players</option>
   </select>
 
   <button onclick="createRoom()">CREATE ROOM</button>
- </div>
+</div>
+
 
  <div class="card">
   <h2>🔑 Join a Room</h2>
@@ -604,7 +631,7 @@ if (!room) {
 
 }
 
-
+   
 // Create a new room
 async function createRoom() {
 
@@ -612,6 +639,16 @@ async function createRoom() {
 
   maxPlayers = Number(
    document.getElementById("maxPlayers").value
+  );
+
+  const category =
+   document.getElementById("roomCategory").value;
+
+  const difficulty =
+   document.getElementById("roomDifficulty").value;
+
+  const questionCount = Number(
+   document.getElementById("roomQuestions").value
   );
 
   const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -640,6 +677,9 @@ async function createRoom() {
     return {
      hostId: playerId,
      maxPlayers: maxPlayers,
+     category: category,
+     difficulty: difficulty,
+     questionCount: questionCount,
      status: "waiting",
      players: {
       [playerId]: {
@@ -673,6 +713,7 @@ async function createRoom() {
  }
 
 }
+
 
 
 // Join an existing room
