@@ -177,6 +177,15 @@ input,select{
   </p>
  </div>
 
+  
+<div class="card">
+  <h2>⚙️ Match Settings</h2>
+  <p>Category: <strong id="displayCategory">Loading...</strong></p>
+  <p>Difficulty: <strong id="displayDifficulty">Loading...</strong></p>
+  <p>Questions: <strong id="displayQuestions">Loading...</strong></p>
+</div>
+
+
  <div class="card">
   <h2>👥 Players</h2>
   <div id="playerList"></div>
@@ -381,6 +390,18 @@ function updatePlayers(room) {
    "Waiting for more players...";
 
  }
+
+ // Display the host's match settings
+ document.getElementById("displayCategory").textContent =
+  room.category || "Not selected";
+
+ document.getElementById("displayDifficulty").textContent =
+  room.difficulty || "Not selected";
+
+ document.getElementById("displayQuestions").textContent =
+  room.questionCount
+   ? room.questionCount + " Questions"
+   : "Not selected";
 
 }
 
